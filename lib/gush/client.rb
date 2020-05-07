@@ -80,11 +80,19 @@ module Gush
       id
     end
 
-    def all_workflows
+    def all_workflows(ignore_failures: false)
       redis.scan_each(match: "gush.workflows.*").map do |key|
         id = key.sub("gush.workflows.", "")
-        find_workflow(id)
-      end
+        begin
+          find_workflow(id)
+        rescue StandardError => e
+          if ignore_failures
+            next
+          else
+            raise e
+          end
+        end
+      end.compact
     end
 
     def find_workflow(id)

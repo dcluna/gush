@@ -66,9 +66,10 @@ module Gush
       client.destroy_workflow(workflow)
     end
 
-    desc "list", "Lists all workflows with their statuses"
+    desc 'list', 'Lists all workflows with their statuses'
+    option :ignore_failures, type: :boolean
     def list
-      workflows = client.all_workflows
+      workflows = client.all_workflows(ignore_failures: options[:ignore_failures])
       rows = workflows.map do |workflow|
         [workflow.id, (Time.at(workflow.started_at) if workflow.started_at), workflow.class, {alignment: :center, value: status_for(workflow)}]
       end
