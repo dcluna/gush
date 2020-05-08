@@ -2,6 +2,7 @@ require 'terminal-table'
 require 'colorize'
 require 'thor'
 require 'launchy'
+require 'csv'
 
 module Gush
   class CLI < Thor
@@ -67,19 +68,42 @@ module Gush
     end
 
     desc 'list', 'Lists all workflows with their statuses'
+    option :format, type: :string, default: :terminal_table
     option :ignore_failures, type: :boolean
     def list
       workflows = client.all_workflows(ignore_failures: options[:ignore_failures])
-      rows = workflows.map do |workflow|
-        [workflow.id, (Time.at(workflow.started_at) if workflow.started_at), workflow.class, {alignment: :center, value: status_for(workflow)}]
+      case options[:format].to_sym
+      when :csv
+        headers = %i[id started_at class status]
+        rows = workflows.map do |workflow|
+          {
+            id: workflow.id,
+            started_at: (Time.at(workflow.started_at) if workflow.started_at),
+            class: workflow.class,
+            status: status_for(workflow).uncolorize.gsub("\n", '|')
+          }
+        end
+        csv_str = CSV.generate(headers: headers) do |csv|
+          csv << headers
+          rows.each do |row|
+            csv << row
+          end
+        end
+        puts csv_str
+      when :terminal_table
+        rows = workflows.map do |workflow|
+          [workflow.id, (Time.at(workflow.started_at) if workflow.started_at), workflow.class, { alignment: :center, value: status_for(workflow) }]
+        end
+        headers = [
+          { alignment: :center, value: 'id' },
+          { alignment: :center, value: 'started at' },
+          { alignment: :center, value: 'name' },
+          { alignment: :center, value: 'status' }
+        ]
+        puts Terminal::Table.new(headings: headers, rows: rows)
+      else
+        raise ArgumentError, "Unknown format: '#{options[:format]}'"
       end
-      headers = [
-        {alignment: :center, value: 'id'},
-        {alignment: :center, value: 'started at'},
-        {alignment: :center, value: 'name'},
-        {alignment: :center, value: 'status'}
-      ]
-      puts Terminal::Table.new(headings: headers, rows: rows)
     end
 
     desc "viz [WorkflowClass]", "Displays graph, visualising job dependencies"
